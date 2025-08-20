@@ -136,6 +136,11 @@ fn main() {
         let vec89 = db.with_execution_state(|state| {
             state.container_values().register_val(VecContainer(vec![ws[8], ws[9]]), state)
         });
+        let vec23_copy = db.with_execution_state(|state| {
+            state.container_values().register_val(VecContainer(vec![ws[2], ws[3]]), state)
+        });
+
+        println!("{:?}, {:?}, {:?}, {:?}, {:?}, {:?}", vec01, vec23, vec45, vec67, vec89, vec23_copy);
 
         buf.stage_insert(&[types["$add"], vec01, vec23, vec45, ts]);
         buf.stage_insert(&[types["$add"], vec23, vec01, vec45, ts]);
