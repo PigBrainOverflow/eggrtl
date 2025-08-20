@@ -1,7 +1,13 @@
 use core_relations::{CounterId, Database, DisplacedTable, TableId, Value, Rebuilder, ContainerValue, SortedWritesTable, ColumnId};
 use numeric_id::NumericId;
+use serde_json::json;
 use core::panic;
-use std::{collections::HashMap, fmt::Debug, iter};
+use std::{
+    time::Instant,
+    collections::HashMap,
+    fmt::Debug,
+    iter
+};
 use bimap::BiHashMap;
 
 
@@ -37,13 +43,17 @@ impl NetlistDatabase {
     const AY_TYPES: &[&str] = &["$not", "$logic_not"];
     const ABY_TYPES: &[&str] = &[
         "$and", "$or", "$xor", "$nand", "$nor", "$xnor",
+        "$eq", "$ge", "$le", "$gt", "$lt", "$logic_and", "$logic_or",
         "$adds", "$addu", "$subs", "$subu", "$muls", "$mulu", "$divs", "$divu", "$mod"
     ];
     const ABSY_TYPES: &[&str] = &["$mux"];
 
     const RTLIL_AY_TYPES: &[&str] = &["$not", "$logic_not"];
     const RTLIL_ABY_ARITH_TYPES: &[&str] = &["$add", "$sub", "$mul", "$div", "$mod"];
-    const RTLIL_ABY_LOGIC_TYPES: &[&str] = &["$and", "$or", "$xor", "$nand", "$nor", "$xnor"];
+    const RTLIL_ABY_LOGIC_TYPES: &[&str] = &[
+        "$and", "$or", "$xor", "$nand", "$nor", "$xnor",
+        "$eq", "$ge", "$le", "$gt", "$lt", "$logic_and", "$logic_or"
+    ];
     const RTLIL_ABSY_TYPES: &[&str] = &["$mux"];
 
     // auxiliary functions
@@ -93,7 +103,7 @@ impl NetlistDatabase {
         })
     }
 
-    pub fn print_tables(self) {
+    pub fn print_tables(&self) {
         self.db.container_values().for_each::<VecContainer>(|vec, expr| {
             println!("Container {:?}: {:?}", expr, vec);
         });
@@ -106,6 +116,19 @@ impl NetlistDatabase {
                 println!("Table {:?}: {:?}", table_id, row);
             }
         }
+    }
+
+    pub fn dump_tables(&self) -> serde_json::Value {
+        let mut wirevecs = Vec::new();
+        self.db.container_values().for_each::<VecContainer>(|vec, expr| {
+            wirevecs.push(json!({
+                "id": expr.rep(),
+                "wires": vec.0.iter().map(|v| v.rep()).collect::<Vec<_>>()
+            }));
+        });
+        json!({
+            "wirevecs": wirevecs
+        })
     }
 
     pub fn merge_all(&mut self) {
@@ -235,16 +258,17 @@ impl NetlistDatabase {
     }
 
     pub fn build_from_json(&mut self, json_path: &str, top_mod: &str, clk_name: &str) {
-        let netlist: serde_json::Value = serde_json::from_reader(
-            std::fs::File::open(json_path).expect("Failed to open JSON file")
-        ).expect("Failed to parse JSON file");
+        let data = std::fs::read_to_string(json_path)
+            .expect("Failed to read JSON file");
+        let netlist: serde_json::Value = serde_json::from_str(&data).unwrap();
+        println!("Successfully loaded JSON netlist from {}", json_path);
         let top_module = netlist.get("modules")
             .and_then(|m| m.get(top_mod))
             .expect("Top module not found");
         self.build_mod(top_module, clk_name);
     }
 
-    fn build_ay_cell<'a>(&mut self, cell: &'a serde_json::Value) -> Option<&'a serde_json::Value> {
+    fn build_ay_cell<'a>(&mut self, cell: &'a serde_json::Value, ts: Value) -> Option<&'a serde_json::Value> {
         // return None if the cell is processed
         let cell_type = cell.get("type").and_then(|d| d.as_str()).unwrap();
         if !Self::RTLIL_AY_TYPES.contains(&cell_type) {
@@ -258,13 +282,13 @@ impl NetlistDatabase {
                     *self.types.get_by_left(cell_type).unwrap(),
                     self.create_or_lookup_wirevec_from_json(conns.get("A").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("Y").unwrap()),
-                    Value::new(0) // at timestamp 0
+                    ts
                 ]);
             None
         }
     }
 
-    pub fn build_aby_arith_cell<'a>(&mut self, cell: &'a serde_json::Value) -> Option<&'a serde_json::Value> {
+    fn build_aby_arith_cell<'a>(&mut self, cell: &'a serde_json::Value, ts: Value) -> Option<&'a serde_json::Value> {
         // return None if the cell is processed
         let cell_type = cell.get("type").and_then(|d| d.as_str()).unwrap();
         if !Self::RTLIL_ABY_ARITH_TYPES.contains(&cell_type) {
@@ -291,13 +315,13 @@ impl NetlistDatabase {
                     self.create_or_lookup_wirevec_from_json(conns.get("A").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("B").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("Y").unwrap()),
-                    Value::new(0) // at timestamp 0
+                    ts
                 ]);
             None
         }
     }
 
-    pub fn build_aby_logic_cell<'a>(&mut self, cell: &'a serde_json::Value) -> Option<&'a serde_json::Value> {
+    fn build_aby_logic_cell<'a>(&mut self, cell: &'a serde_json::Value, ts: Value) -> Option<&'a serde_json::Value> {
         // return None if the cell is processed
         let cell_type = cell.get("type").and_then(|d| d.as_str()).unwrap();
         if !Self::RTLIL_ABY_LOGIC_TYPES.contains(&cell_type) {
@@ -312,13 +336,13 @@ impl NetlistDatabase {
                     self.create_or_lookup_wirevec_from_json(conns.get("A").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("B").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("Y").unwrap()),
-                    Value::new(0) // at timestamp 0
+                    ts
                 ]);
             None
         }
     }
 
-    pub fn build_absy_cell<'a>(&mut self, cell: &'a serde_json::Value) -> Option<&'a serde_json::Value> {
+    fn build_absy_cell<'a>(&mut self, cell: &'a serde_json::Value, ts: Value) -> Option<&'a serde_json::Value> {
         // return None if the cell is processed
         let cell_type = cell.get("type").and_then(|d| d.as_str()).unwrap();
         if !Self::RTLIL_ABSY_TYPES.contains(&cell_type) {
@@ -333,13 +357,14 @@ impl NetlistDatabase {
                     self.create_or_lookup_wirevec_from_json(conns.get("A").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("B").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("S").unwrap()),
-                    Value::new(0) // at timestamp 0
+                    self.create_or_lookup_wirevec_from_json(conns.get("Y").unwrap()),
+                    ts
                 ]);
             None
         }
     }
 
-    pub fn build_dff_cell<'a>(&mut self, cell: &'a serde_json::Value) -> Option<&'a serde_json::Value> {
+    fn build_dff_cell<'a>(&mut self, cell: &'a serde_json::Value, ts: Value) -> Option<&'a serde_json::Value> {
         // return None if the cell is processed
         let cell_type = cell.get("type").and_then(|d| d.as_str()).unwrap();
         if cell_type != "$dff" {
@@ -356,13 +381,15 @@ impl NetlistDatabase {
                 .new_buffer().stage_insert(&[
                     self.create_or_lookup_wirevec_from_json(conns.get("D").unwrap()),
                     self.create_or_lookup_wirevec_from_json(conns.get("Q").unwrap()),
-                    Value::new(0) // at timestamp 0
+                    ts
                 ]);
             None
         }
     }
 
     pub fn build_mod(&mut self, top_mod: &serde_json::Value, clk_name: &str) {
+        let start = Instant::now();
+
         // build inputs & outputs
         let ports = top_mod.get("ports").and_then(|d| d.as_object()).unwrap();
         for (name, port) in ports.iter() {
@@ -411,14 +438,16 @@ impl NetlistDatabase {
             }
 
             // chain of cell processing functions
-            let res = self.build_ay_cell(cell)
-                .and_then(|c| self.build_aby_arith_cell(c))
-                .and_then(|c| self.build_aby_logic_cell(c))
-                .and_then(|c| self.build_absy_cell(c))
-                .and_then(|c| self.build_dff_cell(c));
+            let res = self.build_ay_cell(cell, Value::new(0))
+                .and_then(|c| self.build_aby_arith_cell(c, Value::new(0)))
+                .and_then(|c| self.build_aby_logic_cell(c, Value::new(0)))
+                .and_then(|c| self.build_absy_cell(c, Value::new(0)))
+                .and_then(|c| self.build_dff_cell(c, Value::new(0)));
             if let Some(_) = res {
                 println!("Unprocessed cell: {}", name);
             }
         }
+
+        println!("Successfully built top module in {} ms", start.elapsed().as_millis());
     }
 }

@@ -4,9 +4,11 @@ use eggrtl::core::{NetlistDatabase};
 fn main() {
     println!("Hello, EggRTL!");
     let mut netlist = NetlistDatabase::default();
-    netlist.build_from_json("dot_product.json", "top", "clk");
+    netlist.build_from_json("systolic.json", "systolic", "clk");
     netlist.merge_all();
-    netlist.print_tables();
+
+    serde_json::to_writer_pretty(std::fs::File::create("systolic_out.json").unwrap(), &netlist.dump_tables()).unwrap();
+    // netlist.print_tables();
 
     // let mut db = Database::default();
     // let id_counter = db.add_counter();  // shared by both base and container values
