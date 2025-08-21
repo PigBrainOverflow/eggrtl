@@ -1,4 +1,5 @@
-use eggrtl::core::{NetlistDatabase};
+use crate::core::NetlistDatabase;
+use crate::rewrites::NetlistDatabase;
 
 
 fn main() {
@@ -125,14 +126,14 @@ fn main() {
     // dump_tables(&db, &[displaced, aby_cells]);
 
     // // rebuild containers
-    // loop {
-    //     println!("Rebuilding...");
-    //     let container_modified = db.rebuild_containers(displaced);
-    //     let table_modified = db.apply_rebuild(displaced, &[wires, aby_cells], Value::from_usize(db.inc_counter(ts_counter)));
-    //     if !container_modified && !table_modified {
-    //         break;  // no more changes
-    //     }
-    // }
+    loop {
+        println!("Rebuilding...");
+        let container_modified = db.rebuild_containers(displaced);
+        let table_modified = db.apply_rebuild(displaced, &[wires, aby_cells], Value::from_usize(db.inc_counter(ts_counter)));
+        if !container_modified && !table_modified {
+            break;  // no more changes
+        }
+    }
 
     // println!("After rebuild containers:");
     // dump_tables(&db, &[displaced, aby_cells]);
@@ -154,7 +155,7 @@ fn main() {
     //     rhs.build();
     // }
     // let rs = rsb.build();
-    // db.run_rule_set(&rs);
+    netlist.db.run_rule_set(&rs);
 
     // println!("After rebuild tables:");
     // dump_tables(&db, &[displaced, aby_cells]);

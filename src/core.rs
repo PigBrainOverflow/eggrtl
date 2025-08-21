@@ -12,19 +12,19 @@ use bimap::BiHashMap;
 
 
 pub struct NetlistDatabase {
-    db: Database,
-    id_counter: CounterId,
-    ts_counter: CounterId,
-    displaced: TableId,
-    ay_cells: TableId,
-    aby_cells: TableId,
-    absy_cells: TableId,
-    dffs: TableId,
-    types: BiHashMap<String, Value>,  // we use external containers to record types and wires
-    wires: BiHashMap<i64, Value>,
-    clk: i64,
-    from_inputs: HashMap<(String, i64), i64>,   // (port name, index) -> wire id
-    as_outputs: HashMap<(String, i64), i64>
+    pub(crate) db: Database,
+    pub(crate) id_counter: CounterId,
+    pub(crate) ts_counter: CounterId,
+    pub(crate) displaced: TableId,
+    pub(crate) ay_cells: TableId,
+    pub(crate) aby_cells: TableId,
+    pub(crate) absy_cells: TableId,
+    pub(crate) dffs: TableId,
+    pub(crate) types: BiHashMap<String, Value>,  // we use external containers to record types and wires
+    pub(crate) wires: BiHashMap<i64, Value>,
+    pub(crate) clk: i64,
+    pub(crate) from_inputs: HashMap<(String, i64), i64>,   // (port name, index) -> wire id
+    pub(crate) as_outputs: HashMap<(String, i64), i64>
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -40,21 +40,21 @@ impl ContainerValue for VecContainer {
 }
 
 impl NetlistDatabase {
-    const AY_TYPES: &[&str] = &["$not", "$logic_not"];
-    const ABY_TYPES: &[&str] = &[
+    pub(crate) const AY_TYPES: &[&str] = &["$not", "$logic_not"];
+    pub(crate) const ABY_TYPES: &[&str] = &[
         "$and", "$or", "$xor", "$nand", "$nor", "$xnor",
         "$eq", "$ge", "$le", "$gt", "$lt", "$logic_and", "$logic_or",
         "$adds", "$addu", "$subs", "$subu", "$muls", "$mulu", "$divs", "$divu", "$mod"
     ];
-    const ABSY_TYPES: &[&str] = &["$mux"];
+    pub(crate) const ABSY_TYPES: &[&str] = &["$mux"];
 
-    const RTLIL_AY_TYPES: &[&str] = &["$not", "$logic_not"];
-    const RTLIL_ABY_ARITH_TYPES: &[&str] = &["$add", "$sub", "$mul", "$div", "$mod"];
-    const RTLIL_ABY_LOGIC_TYPES: &[&str] = &[
+    pub(crate) const RTLIL_AY_TYPES: &[&str] = &["$not", "$logic_not"];
+    pub(crate) const RTLIL_ABY_ARITH_TYPES: &[&str] = &["$add", "$sub", "$mul", "$div", "$mod"];
+    pub(crate) const RTLIL_ABY_LOGIC_TYPES: &[&str] = &[
         "$and", "$or", "$xor", "$nand", "$nor", "$xnor",
         "$eq", "$ge", "$le", "$gt", "$lt", "$logic_and", "$logic_or"
     ];
-    const RTLIL_ABSY_TYPES: &[&str] = &["$mux"];
+    pub(crate) const RTLIL_ABSY_TYPES: &[&str] = &["$mux"];
 
     // auxiliary functions
     fn bit_to_i64(bit: &serde_json::Value) -> i64 {
