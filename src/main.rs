@@ -1,14 +1,20 @@
-use crate::core::NetlistDatabase;
-use crate::rewrites::NetlistDatabase;
-
+use core_relations::{PlanStrategy, Value};
+use numeric_id::NumericId;
+use eggrtl::core::NetlistDatabase;
 
 fn main() {
     println!("Hello, EggRTL!");
     let mut netlist = NetlistDatabase::default();
-    netlist.build_from_json("systolic.json", "systolic", "clk");
+    netlist.build_from_json("dot_product.json", "top", "clk");
     netlist.merge_all();
+    netlist.print_tables();
 
-    serde_json::to_writer_pretty(std::fs::File::create("systolic_out.json").unwrap(), &netlist.dump_tables()).unwrap();
+    netlist.rewrite_basic_all(PlanStrategy::PureSize, Value::new(0)..Value::new(1));
+
+    netlist.merge_all();
+    netlist.print_tables();
+
+    serde_json::to_writer_pretty(std::fs::File::create("dot_product_out.json").unwrap(), &netlist.dump_tables()).unwrap();
     // netlist.print_tables();
 
     // let mut db = Database::default();
@@ -126,14 +132,14 @@ fn main() {
     // dump_tables(&db, &[displaced, aby_cells]);
 
     // // rebuild containers
-    loop {
-        println!("Rebuilding...");
-        let container_modified = db.rebuild_containers(displaced);
-        let table_modified = db.apply_rebuild(displaced, &[wires, aby_cells], Value::from_usize(db.inc_counter(ts_counter)));
-        if !container_modified && !table_modified {
-            break;  // no more changes
-        }
-    }
+    // loop {
+    //     println!("Rebuilding...");
+    //     let container_modified = db.rebuild_containers(displaced);
+    //     let table_modified = db.apply_rebuild(displaced, &[wires, aby_cells], Value::from_usize(db.inc_counter(ts_counter)));
+    //     if !container_modified && !table_modified {
+    //         break;  // no more changes
+    //     }
+    // }
 
     // println!("After rebuild containers:");
     // dump_tables(&db, &[displaced, aby_cells]);
@@ -155,7 +161,7 @@ fn main() {
     //     rhs.build();
     // }
     // let rs = rsb.build();
-    netlist.db.run_rule_set(&rs);
+    // netlist.db.run_rule_set(&rs);
 
     // println!("After rebuild tables:");
     // dump_tables(&db, &[displaced, aby_cells]);

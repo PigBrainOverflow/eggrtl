@@ -12,6 +12,14 @@ impl NetlistDatabase {
         let old_range = Value::new(0)..recent_range.start;
         let all_range = Value::new(0)..recent_range.end;
         let next_ts = recent_range.end;
+
+        // this is a test
+        let func_id = self.db.add_external_function(make_external_func(move |state, args| -> Option<Value> {
+            // insert or lookup
+            println!("External function called: {:?}", args);
+            None
+        }));
+
         let mut rsb = self.db.new_rule_set();
 
         // aby_assoc_to_right
@@ -52,16 +60,13 @@ impl NetlistDatabase {
                 ).unwrap();
 
                 let mut aby_assoc_to_right_rhs = aby_assoc_to_right_lhs.build();
-                let func = make_external_func(|state, args| {
-                    // insert or lookup
-                });
-                aby_assoc_to_right_rhs.call_external(func, args)
+                aby_assoc_to_right_rhs.call_external(func_id, &[]).unwrap();    // test
             }
         }
 
         // aby_comm
         // a + b => b + a
-        let comm_types = ["$adds", "$addu"];
+        let comm_types = ["$adds", "$addu", "$muls", "$mulu"];
         for comm_type in comm_types {
             let mut aby_comm_lhs = rsb.new_rule();
             aby_comm_lhs.set_plan_strategy(strategy);
@@ -84,6 +89,7 @@ impl NetlistDatabase {
                 self.aby_cells,
                 &[cell_type.into(), b.into(), a.into(), y.into(), next_ts.into()]
             ).unwrap();
+            aby_comm_rhs.call_external(func_id, &[]).unwrap();  // test
             aby_comm_rhs.build();
         }
 
